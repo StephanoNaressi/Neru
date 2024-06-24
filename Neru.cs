@@ -6,6 +6,8 @@ using System.Diagnostics;
 using Discord.Interactions;
 using Neru.Models;
 using Neru.Utils;
+using Neru.Requests;
+using System.Text.RegularExpressions;
 namespace Neru
 {
 
@@ -35,6 +37,7 @@ namespace Neru
             _client.MessageReceived += RespondInteractAsync;
             await _client.LoginAsync(TokenType.Bot, File.ReadAllText("token.txt"));
             await _client.StartAsync();
+            await _client.SetGameAsync("Blowing Bubbles~");
             await Task.Delay(-1); // Wait forever 
         }
         private Task Log(LogMessage msg)
@@ -58,7 +61,10 @@ namespace Neru
                     var numberParam = cmd.Data.Options.FirstOrDefault(option => option.Name == "number");
                     if (numberParam.Value is long number)
                     {
-                        if (number == 0) await cmd.FollowupAsync("Hey, rolling a 0 faces dice is not that fun! But anyway, you got a 0 hehe");
+
+                        if (number < 0) await cmd.FollowupAsync("Woah there! Now how am I supposed to roll a negative die?");
+                        else if (number == 0) await cmd.FollowupAsync("Hey, rolling a die with 0 faces is not that fun! But anyway, you got a 0 hehe");
+                        else if (number == 1) await cmd.FollowupAsync("Wow!!!! You got a *drumroll* :drum: 1!!! Incredible");
                         else
                         {
                             var result = r.Next(1, (int)number + 1);
@@ -186,13 +192,56 @@ namespace Neru
                 var friend = await _commonDB.FindByIdAsync(lite, cmd.User.Id.ToString());
                 if (friend != null)
                 {
-                    await cmd.RespondAsync($"Oh hehe :bubbles: Thanks :heart: {friend.UserNickname} :heart:");
+                    await cmd.RespondAsync($":3 :bubbles: :heart: {friend.UserNickname} :heart:");
                     friend.UserLove += 0.3f;
                     await lite.SaveChangesAsync();
                 }
                 else
                 {
                     await cmd.RespondAsync("*stares at you* :eyes:");
+                }
+            }
+            else if (cmdName == "RPS")
+            {
+                using SqliteContext lite = new SqliteContext();
+                var friend = await _commonDB.FindByIdAsync(lite, cmd.User.Id.ToString());
+                if (friend != null)
+                {
+                    await cmd.RespondAsync("Alright! Rock...Paper...Scissors! . . . :fist: :newspaper2: :scissors:");
+                    _requests.Add(new RockPaperScissorsRequest(cmd, r, friend));
+                }
+                else
+                {
+                    await cmd.RespondAsync("I only play games with my friends :eyes:");
+                }
+            }
+            else if (cmdName == "SETHEALTH")
+            {
+
+                using SqliteContext lite = new SqliteContext();
+                var friend = await _commonDB.FindByIdAsync(lite, cmd.User.Id.ToString());
+                if (friend != null)
+                {
+                    string valueParam = cmd.Data.Options.FirstOrDefault(option => option.Name == "health").Value.ToString();
+                    if (valueParam != null && Regex.IsMatch(valueParam, @"^[+-]?\d+$"))
+                    {
+                        if (Regex.IsMatch(valueParam, @"^[+-]\d+$"))
+                        {
+                            friend.UserHP += int.Parse(valueParam);
+                            await lite.SaveChangesAsync();
+                            await cmd.RespondAsync($"Done calculating! Your HP now is {friend.UserHP}");
+                        }
+                        else
+                        {
+                            friend.UserHP = int.Parse(valueParam);
+                            await lite.SaveChangesAsync();
+                            await cmd.RespondAsync($"Done! Your HP now is {friend.UserHP}");
+                        }
+                    }
+                }
+                else
+                {
+                    await cmd.RespondAsync("You're not my friend so I dont keep track of your health, sorry! :bubbles:");
                 }
             }
         }
@@ -219,7 +268,7 @@ namespace Neru
             }
             if(randomNumber < 60)
             {
-                if (msg.Content.ToUpperInvariant() == "HEADPAT" && !msg.Author.IsBot)
+                if (msg.Content.ToUpperInvariant() == "PAT" && !msg.Author.IsBot)
                 {
                     await msg.Channel.SendMessageAsync("Can I have pats too :eyes: ? :bubbles:");
                 }
@@ -280,7 +329,17 @@ namespace Neru
                     {
                         Name = "headpat",
                         Description = "Give Neru Headpats"
-                    }
+                    },
+                    new SlashCommandBuilder()
+                    {
+                        Name = "rps",
+                        Description = "Rock Paper Scissors!"
+                    },
+                    new SlashCommandBuilder()
+                    {
+                        Name = "sethealth",
+                        Description = "Set your health value"
+                    }.AddOption("health", ApplicationCommandOptionType.String, "New Health value or operator", isRequired: true)
 
                 }.Select(x => x.Build()).ToArray();
 
