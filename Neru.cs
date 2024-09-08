@@ -98,7 +98,7 @@ namespace Neru
                                 new("🟠 Orange", "1204056735250260019"),
                                 new("🟡 Yellow", "1204056736135249970"),
                                 new("🔵 Blue", "1204056739545354291")
-                            ])
+                            ], placeholder: "Choose a color")
                             .WithSelectMenu("roles-continent",
                             [
                                 new("🌍 Europe", "1204056844239376405"),
@@ -107,14 +107,14 @@ namespace Neru
                                 new("🌍 Africa", "1204056848307724298"),
                                 new("🌏 Asia", "1204056846617284618"),
                                 new("🌏 Oceania", "1204056847309480016")
-                            ])
+                            ], placeholder: "Choose a country")
                             .WithSelectMenu("roles-pronouns",
                             [
                                 new("🧡 he/him", "1204056886392135731"),
                                 new("💛 she/her", "1204056887339909140"),
                                 new("💜 they/them", "1204056889218826260"),
                                 new("💚 ask", "1204056890003165296"),
-                            ]);
+                            ], placeholder: "Choose a pronoun");
 
                         await chan.SendMessageAsync(embed: new EmbedBuilder
                         {
