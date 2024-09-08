@@ -54,7 +54,19 @@ namespace Neru
             if (arg.Data.CustomId.StartsWith("roles-"))
             {
                 var id = ulong.Parse(arg.Data.Values.First());
-                await ((IGuildUser)arg.User).AddRoleAsync(id);
+
+                var u = ((IGuildUser)arg.User);
+                ulong[] ids;
+                if (arg.Data.CustomId == "roles-color") ids = [1204056730720542720, 1204056731114803253, 1204056732486205492, 1204056734008606781, 1204056735250260019, 1204056736135249970, 1204056739545354291];
+                else if (arg.Data.CustomId == "roles-continent") ids = [1204056844239376405, 1204056844931309600, 1204056845648535584, 1204056848307724298, 1204056846617284618, 1204056847309480016];
+                else ids = [1204056886392135731, 1204056887339909140, 1204056889218826260, 1204056890003165296];
+                foreach (var r in ids)
+                {
+                    if (u.RoleIds.Contains(r)) await u.RemoveRoleAsync(r);
+                }
+
+                await u.AddRoleAsync(id);
+                await arg.RespondAsync("Ok", ephemeral: true);
             }
         }
 
