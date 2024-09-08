@@ -53,6 +53,7 @@ namespace Neru
         {
             if (arg.Data.CustomId.StartsWith("roles-"))
             {
+                await arg.DeferAsync();
                 var id = ulong.Parse(arg.Data.Values.First());
 
                 var u = ((IGuildUser)arg.User);
