@@ -109,6 +109,7 @@ namespace Neru
                             Title = "Roles",
                             Color = Color.Blue,
                         }.Build(), components: ints.Build());
+                        await cmd.RespondAsync("Ok", ephemeral: true);
                     });
                 }
                 else
