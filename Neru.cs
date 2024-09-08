@@ -42,11 +42,22 @@ namespace Neru
             _client.SlashCommandExecuted += SlashCommandExecutedAsync;
             _client.MessageReceived += ReceiveMessageAsync;
             _client.MessageReceived += RespondInteractAsync;
+            _client.SelectMenuExecuted += SelectMenuExecuted;
             await _client.LoginAsync(TokenType.Bot, File.ReadAllText("token.txt"));
             await _client.StartAsync();
             await _client.SetGameAsync("Blowing Bubbles~");
             await Task.Delay(-1); // Wait forever 
         }
+
+        private async Task SelectMenuExecuted(SocketMessageComponent arg)
+        {
+            if (arg.Data.CustomId.StartsWith("roles-"))
+            {
+                var id = ulong.Parse(arg.Data.Value);
+                await ((IGuildUser)arg.User).AddRoleAsync(id);
+            }
+        }
+
         private Task Log(LogMessage msg)
         {
             Console.WriteLine(msg);
@@ -56,7 +67,56 @@ namespace Neru
         private async Task SlashCommandExecutedAsync(SocketSlashCommand cmd)
         {
             var cmdName = cmd.CommandName.ToUpperInvariant();
-            if (cmdName == "BEEP")
+            if (cmdName == "INIT")
+            {
+                if (cmd.User.Id == 298907835251687424 || cmd.User.Id == 144851584478740481)
+                {
+                    await cmd.DeferAsync();
+                    var chan = await (cmd.Channel as ITextChannel).Guild.GetTextChannelAsync(1204049269258977370);
+
+                    _ = Task.Run(async () =>
+                    {
+                        var ints = new ComponentBuilder()
+                            .WithSelectMenu("roles-color",
+                            [
+                                new("🔴 Red", "1204056730720542720"),
+                                new("🟣 Purple", "1204056731114803253"),
+                                new("🟢 Green", "1204056732486205492"),
+                                new("🩷 Pink", "1204056734008606781"),
+                                new("🟠 Orange", "1204056735250260019"),
+                                new("🟡 Yellow", "1204056736135249970"),
+                                new("🔵 Blue", "1204056739545354291")
+                            ])
+                            .WithSelectMenu("roles-continent",
+                            [
+                                new("🌍 Europe", "1204056844239376405"),
+                                new("🌎 North America", "1204056844931309600"),
+                                new("🌎 South America", "1204056845648535584"),
+                                new("🌍 Africa", "1204056848307724298"),
+                                new("🌏 Asia", "1204056846617284618"),
+                                new("🌏 Oceania", "1204056847309480016")
+                            ])
+                            .WithSelectMenu("roles-pronouns",
+                            [
+                                new("🧡 he/him", "1204056886392135731"),
+                                new("💛 she/her", "1204056887339909140"),
+                                new("💜 they/them", "1204056889218826260"),
+                                new("💚 ask", "1204056890003165296"),
+                            ]);
+
+                        await chan.SendMessageAsync(embed: new EmbedBuilder
+                        {
+                            Title = "Roles",
+                            Color = Color.Blue,
+                        }.Build(), components: ints.Build());
+                    });
+                }
+                else
+                {
+                    await cmd.RespondAsync("O..Oh Sorry you're not allowed to use that! :hushed:");
+                }
+            }
+            else if (cmdName == "BEEP")
             {
                 await cmd.RespondAsync("boop!");
             }
@@ -485,10 +545,17 @@ namespace Neru
         //Create slash commands
         private Task ReadyAsync()
         {
+
+
             // _ means variable is not gonna be used, so compiler stops whining
             _ = Task.Run(async () => {
                 var builder = new[]
                 {
+                    new SlashCommandBuilder()
+                    {
+                        Name = "init",
+                        Description = "Init server stuff"
+                    },
                     new SlashCommandBuilder()
                     {
                         Name = "beep",
