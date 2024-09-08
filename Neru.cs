@@ -3,11 +3,12 @@ using Discord.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using Neru.Context;
 using System.Diagnostics;
-using Discord.Interactions;
-using Neru.Models;
 using Neru.Utils;
 using Neru.Requests;
 using System.Text.RegularExpressions;
+using Neru.JsonClasses;
+using Newtonsoft.Json;
+using Neru.Models;
 namespace Neru
 {
 
@@ -18,6 +19,9 @@ namespace Neru
         ulong _testingGuild = 1169565317920456705;
         Random r = new Random();
         CommonDB _commonDB = new();
+        InteractiveResponsesMain _interactiveResponses;
+        public static Kana KanaDict {get;set;}
+        public static Vocab[] VocabDict { get;set;}
         public static async Task Main()
         {
             var program = new Neru();
@@ -25,6 +29,9 @@ namespace Neru
         }
         private async Task StartAsync()
         {
+            _interactiveResponses = JsonConvert.DeserializeObject<InteractiveResponsesMain>(File.ReadAllText("Data/InteractiveResponses.json"));
+            KanaDict = JsonConvert.DeserializeObject<Kana>(File.ReadAllText("Data/Kana.json"));
+            VocabDict = JsonConvert.DeserializeObject<Vocab[]>(File.ReadAllText("Data/Vocab5.json"));
             _client = new(new()
             {
                 LogLevel = LogSeverity.Info,
@@ -179,7 +186,7 @@ namespace Neru
                 if (friend != null)
                 {
                     var love = (friend.UserLove / 1000f) * 100;
-                    await cmd.RespondAsync($"Hi! {friend.UserNickname} My love towards you is... {(int)Math.Round(love)}% :heart: :bubbles:");
+                    await cmd.RespondAsync($"Hi! {friend.UserNickname} My love towards you is... {(int)Math.Round(love)}% ({Math.Round(friend.UserLove, 1)}) :heart: :bubbles:");
                 }
                 else
                 {
@@ -193,7 +200,7 @@ namespace Neru
                 if (friend != null)
                 {
                     await cmd.RespondAsync($":3 :bubbles: :heart: {friend.UserNickname} :heart:");
-                    friend.UserLove += 0.3f;
+                    friend.UserLove += 0.6f;
                     await lite.SaveChangesAsync();
                 }
                 else
@@ -223,26 +230,214 @@ namespace Neru
                 if (friend != null)
                 {
                     string valueParam = cmd.Data.Options.FirstOrDefault(option => option.Name == "health").Value.ToString();
-                    if (valueParam != null && Regex.IsMatch(valueParam, @"^[+-]?\d+$"))
+
+                    try
                     {
-                        if (Regex.IsMatch(valueParam, @"^[+-]\d+$"))
+                        if (valueParam != null && Regex.IsMatch(valueParam, @"^[+-]?\d+$"))
                         {
-                            friend.UserHP += int.Parse(valueParam);
-                            await lite.SaveChangesAsync();
-                            await cmd.RespondAsync($"Done calculating! Your HP now is {friend.UserHP}");
+                            if (valueParam.StartsWith("+") || (valueParam.StartsWith("-")))
+                            {
+                                if (Regex.Count(valueParam, @"^[+-]\d+$") == 1)
+                                {
+                                    friend.UserHP += int.Parse(valueParam);
+                                    await lite.SaveChangesAsync();
+                                    await cmd.RespondAsync($"Done calculating! Your HP now is {friend.UserHP}");
+                                }
+                                else
+                                {
+                                    await cmd.RespondAsync($"Please input a proper number! :bubbles:");
+                                }
+                            }
+                            else
+                            {
+                                friend.UserHP = int.Parse(valueParam);
+                                await lite.SaveChangesAsync();
+                                await cmd.RespondAsync($"Done! Your HP now is {friend.UserHP}");
+                            }
                         }
                         else
                         {
-                            friend.UserHP = int.Parse(valueParam);
-                            await lite.SaveChangesAsync();
-                            await cmd.RespondAsync($"Done! Your HP now is {friend.UserHP}");
+                            await cmd.RespondAsync($"Please input a proper number! :bubbles:");
+
                         }
                     }
+                    catch (Exception e)
+                    {
+                        await cmd.RespondAsync($"Wow! That number was a bit difficult to handle, try again with a simpler one >n<! :bubbles:");
+                    }
+                    
                 }
+                        
                 else
                 {
                     await cmd.RespondAsync("You're not my friend so I dont keep track of your health, sorry! :bubbles:");
                 }
+            }
+            else if (cmdName == "LISTFRIENDS")
+            {
+                cmd.DeferAsync();
+                using SqliteContext lite = new SqliteContext();
+                var friend = await _commonDB.FindByIdAsync(lite, cmd.User.Id.ToString());
+                if (cmd.User.Id == 298907835251687424)
+                {
+                    var friends = "My friends are: ";
+                    foreach (var item in lite.UserRemembrances)
+                    {
+                        friends += $" {item.UserNickname} With love: {MathF.Round(item.UserLove,2)} ";
+                    }
+                    
+                    await cmd.FollowupAsync(friends);
+                }
+                else
+                {
+                    await cmd.FollowupAsync("Sorry! Only Nano can use that command!"); 
+                }
+            }
+            else if(cmdName == "ROLEASSIGNMENT")
+            {
+                if (cmd.User.Id == 298907835251687424)
+                {
+
+                }
+                else
+                {
+                    await cmd.FollowupAsync("Sorry! Only Nano can use that command!");
+                }
+            }
+            else if (cmdName == "WIKI")
+            {
+                cmd.DeferAsync();
+                using SqliteContext lite = new SqliteContext();
+                Console.WriteLine(cmd.Data.Options.First().Name);
+                try
+                {
+                    switch (cmd.Data.Options.First().Name)
+                    {
+                        case "add":
+                            if (cmd.User.Id != 298907835251687424) await cmd.RespondAsync("Sorry! Only Nano can add to the database :bubbles:");
+                            else
+                            {
+                                string fieldName = cmd.Data.Options.First().Options.FirstOrDefault(option => option.Name == "field_name").Value.ToString();
+                                string fieldDescription = cmd.Data.Options.First().Options.FirstOrDefault(option => option.Name == "description").Value.ToString();
+                                var wiki = new MyWiki();
+                                wiki.Title = fieldName;
+                                wiki.Description = fieldDescription;
+                                wiki.EntryID = fieldName.ToUpperInvariant();
+                                lite.MyWikis.Add(wiki);
+                                await lite.SaveChangesAsync();
+                                await cmd.FollowupAsync($"Added {fieldName} to the wiki! :bubbles: ");
+                            }
+                            break;
+                        case "get":
+                            string query = cmd.Data.Options.First().Options.FirstOrDefault(option => option.Name == "query").Value.ToString();
+                            var result = lite.MyWikis.FirstOrDefault(x => x.EntryID.Equals(query.ToUpperInvariant()));
+                            if (result != null)
+                            {
+                                await cmd.FollowupAsync($"## {result.Title} \n```{result.Description}```");
+                            }
+                            else await cmd.FollowupAsync("Oops, couldn't find your query, maybe ask Nano about it! :bubbles:");
+                            break;
+                        case "list":
+                            var titleFields = String.Join(", ",lite.MyWikis.Select(x => x.Title));
+                            if (titleFields != null) await cmd.FollowupAsync($"```{titleFields}```");
+                            else await cmd.FollowupAsync("Oop! Something went wrong! :bubbles:");
+                            break;
+                        case "remove":
+                            if (cmd.User.Id != 298907835251687424) await cmd.RespondAsync("Sorry! Only Nano can add to the database :bubbles:");
+                            else
+                            {
+                                string entryId = cmd.Data.Options.First().Options.FirstOrDefault(option => option.Name == "field_id").Value.ToString();
+                                var fieldSearch = lite.MyWikis.FirstOrDefault(x => x.EntryID.Equals(entryId.ToUpperInvariant()));
+                                if (fieldSearch != null)
+                                {
+                                    lite.MyWikis.Remove(fieldSearch);
+                                    await lite.SaveChangesAsync();
+                                    await cmd.FollowupAsync($"{fieldSearch.Title} has been removed! o7 :bubbles:");
+                                }
+                                else await cmd.FollowupAsync("Oops, couldn't find your query, maybe ask Nano about it! :bubbles:");
+                            };
+                            break;
+                        case null: Console.WriteLine("Reached default"); break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error: {e}");
+                    await cmd.FollowupAsync($"Wow! Something went wrong, try again! >n<! :bubbles:");
+                }
+
+            }
+            else if(cmdName == "JP")
+            {
+                await cmd.DeferAsync();
+                using SqliteContext lite = new SqliteContext();
+                Console.WriteLine(cmd.Data.Options.First().Name);
+                var friend = await _commonDB.FindByIdAsync(lite, cmd.User.Id.ToString());
+                if(friend != null)
+                {
+                    try
+                    {
+
+                        switch (cmd.Data.Options.First().Name)
+                        {
+                            case "hiragana":
+                                await cmd.FollowupAsync($"Okay! Let me choose some hiraganas for you {friend.UserNickname}");
+                                Dictionary<string, string> Hresponse = new();
+                                var Hrn = r.Next(1, 10);
+                                //5 random kanas
+                                for (int i = 0; i < Hrn; i++)
+                                {
+                                    var randomIndex = r.Next(0, Neru.KanaDict.Hiragana.Count);
+                                    var randomElement = Neru.KanaDict.Hiragana.ElementAt(randomIndex);
+                                    if (!Hresponse.ContainsKey(randomElement.Key)) Hresponse.Add(randomElement.Key, randomElement.Value);
+                                }
+
+                                var HkanasChosen = string.Join(" ", Hresponse.Keys);
+                                var HvaluesChosen = string.Join(" ", Hresponse.Values);
+
+                                await cmd.FollowupAsync($"The Kanas are: \n# {HkanasChosen}");
+                                _requests.Add(new KanaRequest(friend, cmd, HvaluesChosen, _commonDB));
+                                break;
+                            case "katakana":
+                                await cmd.FollowupAsync($"Okay! Let me choose some katakanas for you {friend.UserNickname}");
+                                //5 random kanas
+                                Dictionary<string, string> Kresponse = new();
+                                var Krn = r.Next(1, 10);
+
+                                for (int i = 0; i < Krn; i++)
+                                {
+                                    var randomIndex = r.Next(0, Neru.KanaDict.Hiragana.Count);
+                                    var randomElement = Neru.KanaDict.Katakana.ElementAt(randomIndex);
+                                    if (!Kresponse.ContainsKey(randomElement.Key)) Kresponse.Add(randomElement.Key, randomElement.Value);
+                                }
+
+                                var KkanasChosen = string.Join(" ", Kresponse.Keys);
+                                var KvaluesChosen = string.Join(" ", Kresponse.Values);
+
+                                await cmd.FollowupAsync($"The Kanas are: \n# {KkanasChosen}");
+                                _requests.Add(new KanaRequest(friend, cmd, KvaluesChosen, _commonDB));
+
+                                break;
+                            case "vocab":
+                                await cmd.FollowupAsync($"Okay! Let me choose a word for you {friend.UserNickname}");
+                                var randomVocab = VocabDict[r.Next(0, VocabDict.Length)];
+
+                                await cmd.FollowupAsync($"The word is: \n# {randomVocab.word}");
+                                _requests.Add(new VocabRequest(friend, cmd, randomVocab, _commonDB));
+                                break;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"Error: {e}");
+                        await cmd.FollowupAsync($"Wow! Something went wrong, try again! >n<! :bubbles:");
+                    }
+                }
+                else
+                {
+                    await cmd.FollowupAsync("You're not my friend but we can become friends if you do /befriend :), sorry! :bubbles:");
+                }
+
             }
         }
         private async Task RespondInteractAsync(SocketMessage msg)
@@ -252,17 +447,20 @@ namespace Neru
             {
                 if (msg.Content.ToUpperInvariant().Contains("YUZU") && !msg.Author.IsBot)
                 {
-                    await msg.Channel.SendMessageAsync("Love Yuzu :heart:");
+                    await _commonDB.AddLove(0.30f, msg.Author.Id.ToString());
+                    await msg.Channel.SendMessageAsync(_interactiveResponses.Responses.Yuzu[r.Next(0, _interactiveResponses.Responses.Yuzu.Count)]);
                 }
             }
             if(randomNumber < 35)
             {
                 if(msg.Content.ToUpperInvariant().Contains("WOW") && !msg.Author.IsBot)
                 {
+                    await _commonDB.AddLove(0.15f, msg.Author.Id.ToString());
                     await msg.Channel.SendMessageAsync("wow");
                 }
                 if (msg.Content.ToUpperInvariant() == "WHAT" && !msg.Author.IsBot)
                 {
+                    await _commonDB.AddLove(0.25f, msg.Author.Id.ToString());
                     await msg.Channel.SendMessageAsync("what");
                 }
             }
@@ -270,7 +468,8 @@ namespace Neru
             {
                 if (msg.Content.ToUpperInvariant() == "PAT" && !msg.Author.IsBot)
                 {
-                    await msg.Channel.SendMessageAsync("Can I have pats too :eyes: ? :bubbles:");
+                    await _commonDB.AddLove(0.45f, msg.Author.Id.ToString());
+                    await msg.Channel.SendMessageAsync(_interactiveResponses.Responses.Pat[r.Next(0,_interactiveResponses.Responses.Pat.Count)]);
                 }
             }
         }
@@ -307,6 +506,11 @@ namespace Neru
                     },
                     new SlashCommandBuilder()
                     {
+                        Name = "roleassignment",
+                        Description = "Setup role assignment"
+                    },
+                    new SlashCommandBuilder()
+                    {
                         Name = "befriend",
                         Description = "Become friends with Neru"
                     },
@@ -339,8 +543,61 @@ namespace Neru
                     {
                         Name = "sethealth",
                         Description = "Set your health value"
-                    }.AddOption("health", ApplicationCommandOptionType.String, "New Health value or operator", isRequired: true)
-
+                    }.AddOption("health", ApplicationCommandOptionType.String, "New Health value or operator", isRequired: true),
+                    new SlashCommandBuilder()
+                    {
+                        Name = "listfriends",
+                        Description = "Check Neru friends"
+                    },
+                    new SlashCommandBuilder()
+                    {
+                        Name = "wiki",
+                        Description = "Ask Neru about the wiki"
+                    }
+                    .AddOption(new SlashCommandOptionBuilder()
+                        .WithName("add")
+                        .WithDescription("Add a term to the wiki")
+                        .WithType(ApplicationCommandOptionType.SubCommand)
+                        .AddOption("field_name", ApplicationCommandOptionType.String, "Name of your field", isRequired: true)
+                        .AddOption("description", ApplicationCommandOptionType.String, "Description of your field", isRequired: true)
+                    )
+                    .AddOption(new SlashCommandOptionBuilder()
+                        .WithName("get")
+                        .WithDescription("Get a description from the wiki")
+                        .WithType(ApplicationCommandOptionType.SubCommand)
+                        .AddOption("query",ApplicationCommandOptionType.String, "What do you want to know?", isRequired:true)
+                    )
+                    .AddOption(new SlashCommandOptionBuilder()
+                        .WithName("list")
+                        .WithDescription("Get a list of all values from the wiki")
+                        .WithType(ApplicationCommandOptionType.SubCommand)
+                    )
+                    .AddOption(new SlashCommandOptionBuilder()
+                        .WithName("remove")
+                        .WithDescription("remove a term to the wiki")
+                        .WithType(ApplicationCommandOptionType.SubCommand)
+                        .AddOption("field_id", ApplicationCommandOptionType.String, "id of your field", isRequired: true)
+                    ),
+                    new SlashCommandBuilder()
+                    {
+                        Name = "jp",
+                        Description = "Study some Japanese"
+                    }
+                    .AddOption (new SlashCommandOptionBuilder()
+                        .WithName("hiragana")
+                        .WithDescription("translate hiragana")
+                        .WithType (ApplicationCommandOptionType.SubCommand)
+                    )
+                    .AddOption (new SlashCommandOptionBuilder()
+                        .WithName("katakana")
+                        .WithDescription("translate katakana")
+                        .WithType (ApplicationCommandOptionType.SubCommand)
+                    )
+                    .AddOption(new SlashCommandOptionBuilder()
+                        .WithName("vocab")
+                        .WithDescription("translate vocabulary")
+                        .WithType(ApplicationCommandOptionType.SubCommand)
+                    )
                 }.Select(x => x.Build()).ToArray();
 
                 foreach (var command in builder)
